@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<style type="text/css">
+		#background {
+			position: absolute;
+			top: 0;
+			left: 0;
+			z-index: 1;
+		}
+		#canvas {
+			position: absolute;
+			top: 0;
+			left:0;
+			z-index: 2;
+		}
+	</style>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+</head>
+<body>
+<img id="background" src="http://wow.zamimg.com/images/wow/maps/enus/normal/6138.jpg?22427" />
+<script type="text/javascript">
+var width = 488, height = 325, scale = 2.5
+	width *= scale;
+	height *= scale;
+
+document.getElementById('background').style.width = width+'px'
+var canvas = makeCanvas(width, height)
+
+console.log('getting data...')
+$.ajax('http://localhost:3000/generate')
+	.done(function(data) {
+		console.log('done')
+		render(data)
+	})
+	.fail(function(err) {
+		console.log(err)
+	})
+
+function render(data) {
+	console.log(data)
+	for (var i in data.cities) {
+		var sample = data.cities[i]
+		drawSample(sample)
+	}
+
+	for (var i in data.path) {
+		var node = data.path[i]
+		drawNode(node, i == 0)
+	}
+	this.canvas.ctx.lineWidth = 1;
+	this.canvas.ctx.stroke();
+	this.canvas.ctx.closePath();
+
+	for (var i in data.clusters) {
+		var cluster = data.clusters[i]
+		drawCluster(cluster, i == 0)
+	}
+
+	function drawSample(sample) {
+		var coords = {
+			x: sample.x * (canvas.width/100),
+			y: sample.y * (canvas.height/100)
+		}
+
+	  canvas.ctx.fillStyle = "#FFF";
+	  canvas.ctx.beginPath();
+	  canvas.ctx.arc(coords.x, coords.y, 3, 0, Math.PI*2, true);
+	  canvas.ctx.closePath();
+	  canvas.ctx.fill();
+	}
+
+	function drawNode(node, first) {
+		var coords = {
+			x: node.x * (canvas.width/100),
+			y: node.y * (canvas.height/100)
+		}
+		canvas.ctx.fillStyle = "#0F0";
+		if (first) canvas.ctx.fillRect(coords.x, coords.y, 5, 5);
+		canvas.ctx.lineTo(coords.x, coords.y);
+	};
+
+	function drawCluster(cluster) {
+		var coords = {
+			x: node.x * (canvas.width/100),
+			y: node.y * (canvas.height/100)
+		}
+		canvas.ctx.fillStyle = "#F00";
+		canvas.ctx.fillRect(coords.x, coords.y, 10, 10);
+	}
+}
+
+function makeCanvas(width, height) {
+	var canvas = document.createElement('canvas')
+	canvas.width = width
+	canvas.height = height
+	canvas.setAttribute('id', 'canvas')
+	document.body.appendChild(canvas)
+	canvas.ctx = canvas.getContext('2d')
+	return canvas
+}
+</script>
+</body>
+</html>
