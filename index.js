@@ -1,35 +1,129 @@
 var express = require('express'),
 	app = express(),
-	TSP = require('./lib/TSP')
+	TSP = require('./lib/TSP'),
+	Scraper = require('./lib/Scraper'),
+	async = require('async'),
+	Promise = require('bluebird')
 
+//config
 app.use(function(req, res, next) {
 	res.header('Access-Control-Allow-Origin', '*');
 	res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
 	res.header('Access-Control-Allow-Headers', 'Content-Type');
 	next()
 })
-
 app.set('json spaces', 10)
-app.get('/generate', (req, res) => {
-	var map = { count: 189, coords: [[21.4,76],[21.5,76],[21.6,74.8],[21.7,77.4],[21.9,78.4],[21.9,78.6],[22.1,73.2],[22.8,72.3],[22.8,72.5],[23.4,71.4],[23.5,71.4],[23.5,71.5],[23.6,79.6],[23.6,88],[23.7,27.9],[23.7,64.2],[23.9,29],[24,66],[24,78.4],[24,78.6],[24.1,27.2],[24.5,71.2],[24.6,55.9],[24.7,26.6],[24.7,77.7],[24.7,88],[24.8,79.2],[25.2,50.6],[25.3,64.1],[25.4,33.4],[25.4,50.4],[25.4,58.6],[25.4,76.4],[25.4,76.5],[25.5,33.4],[25.5,33.5],[25.5,58.4],[25.5,58.5],[25.5,65.6],[25.5,76.4],[25.5,76.5],[25.6,50.3],[25.6,57],[25.7,71.3],[25.8,38.9],[25.9,38.4],[25.9,51],[26,54.6],[26,62.3],[26,62.5],[26,87.1],[26.1,55.7],[26.2,40.3],[26.2,75.3],[26.4,60.6],[26.4,64.8],[26.4,71.5],[26.4,73.6],[26.5,60.6],[26.5,64.8],[26.5,73.5],[26.6,49.1],[26.6,50.2],[26.6,51.1],[26.6,57.9],[26.6,86.2],[26.7,32.4],[26.7,32.5],[26.9,38],[26.9,72.7],[27,55.4],[27,55.5],[27.1,70.9],[27.2,59.2],[27.3,36.7],[27.4,31.4],[27.4,61.6],[27.4,70.1],[27.4,71.9],[27.5,61.6],[27.5,70.2],[27.6,35.7],[27.7,36.7],[27.8,26.3],[27.8,30.4],[27.8,30.5],[27.8,34.4],[27.8,34.5],[27.9,38.8],[27.9,57],[27.9,69.1],[28,29.2],[28,64.9],[28,71.7],[28.1,63],[28.4,27.8],[28.4,46.5],[28.4,60.7],[28.5,40.1],[28.5,60.7],[28.5,72.4],[28.5,72.5],[28.7,68.9],[28.8,44.2],[28.8,45.4],[28.8,45.5],[28.9,41.4],[28.9,41.6],[28.9,43.2],[29.1,67.6],[29.2,47],[29.6,60.6],[29.8,86],[29.9,71.1],[30,47.4],[30,47.5],[30.3,61.8],[30.4,67.7],[30.5,85.8],[30.6,48.2],[30.7,71.4],[30.8,49.1],[30.8,60.5],[30.8,77.4],[30.8,77.5],[30.8,86.7],[30.9,59.4],[30.9,59.5],[30.9,85.4],[31.1,67.8],[31.4,71.6],[31.5,49.4],[31.5,71.6],[31.6,68.2],[31.7,61.4],[31.7,61.5],[31.7,77.3],[31.7,79.7],[31.7,80.8],[31.9,60.2],[32,72.7],[32.1,78],[32.2,21.4],[32.2,21.5],[32.2,58.8],[32.2,68.8],[32.2,85.9],[32.4,18.9],[32.4,50.1],[32.4,81.5],[32.4,83.4],[32.4,83.5],[32.5,19],[32.5,81.5],[32.7,20.3],[32.8,59.6],[32.8,69.4],[32.8,69.5],[32.8,76.4],[32.8,76.6],[32.8,83.1],[32.9,70.6],[33,66.8],[33.2,78.9],[33.3,80.1],[33.4,50.2],[33.4,68.1],[33.4,81.2],[33.5,19.9],[33.5,50.2],[33.5,71.3],[33.5,76.9],[33.5,81.2],[33.6,82.4],[33.6,82.5],[33.7,65.4],[33.7,65.5],[33.8,72.2],[33.8,78],[34,83.9],[34.1,69.3],[34.1,79.2],[34.1,79.5],[34.2,19],[34.4,50.9],[34.6,17.1],[34.6,63.1],[34.7,64.3],[34.9,52.7]] }
 
-	var tsp = new TSP({
-		map: map,
-		cycles: 100,
-		gain: 50,
-		alpha: 0.05,
-		complete: complete
-	})
-
-	function complete(opts) {
-		var ret = {
-			count: opts.map.count,
-			cities: opts.cities,
-			path: opts.optimal,
-			clusters: opts.clusters
-		}
-		res.json(ret)
-	}
+app.param('objectID', function(req, res, next, id) {
+	next()
 })
+
+app.param('mapID', function(req, res, next, id) {
+	next()
+})
+//end config
+
+//endpoints
+app.get('/generate/:objectID', (req, res) => {
+	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
+		objectID = 'objectID' in req.params ? req.params.objectID : undefined
+
+	generate(objectID, mapID)
+		.then((json) => {
+			complete(req, res, undefined, json)
+		})
+		.error((err) => {
+			complete(req, res, err, undefined)
+		})
+})
+
+app.get('/generate/:objectID/:mapID', (req, res) => {
+	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
+		objectID = 'objectID' in req.params ? req.params.objectID : undefined
+
+	generate(objectID, mapID)
+		.then((json) => {
+			complete(req, res, undefined, json)
+		})
+		.error((err) => {
+			complete(req, res, err, undefined)
+		})
+})
+//end endpoints
+
+function generate(objectID, mapID) {
+	return new Promise((resolve, reject) => {
+		Scraper.get(objectID)
+			.then((json) => {
+				//get coordinate data
+				if (!!json && Object.keys(json).length) {
+					if (!!mapID && mapID in json) {
+						var obj = json[mapID][0]
+						return [{
+							count: obj.count,
+							map: mapID,
+							object: objectID,
+							coords: obj.coords
+						}]
+					} else {
+						return Object.keys(json).map((item, index) => {
+							var obj = json[item][0]
+							return {
+								count: obj.count,
+								map: item,
+								object: objectID,
+								coords: obj.coords
+							}
+						})
+					}
+				}
+			})
+			.then((array) => {
+				//generate optimal path via TSP
+				var ret = []
+				return new Promise((resolve, reject) => {
+					async.eachSeries(array, (item, callback) => {
+						var tsp = new TSP({
+							map: item.coords,
+							cycles: 100,
+							gain: 50,
+							alpha: 0.05,
+							complete: (opts) => {
+								ret.push({
+									object: item.object,
+									coords: opts.optimal,
+									map: item.map
+								})
+								callback()
+							}
+						})
+					}, () => {
+						resolve(ret)
+					})
+				})
+			})
+			.then((array) => {
+				resolve(array)
+			})
+			.catch((err) => {
+				reject(err)
+			})
+	})
+}
+
+function complete(req, res, err, json) {
+	var ret = {}
+	if (err) {
+		ret.status = "error"
+		ret.message = err
+	} else {
+		console.log('success')
+		ret.status = "ok"
+		ret.message = ""
+	}
+	ret.data = json ? json : {}
+	res.send(ret)
+	res.end()
+}
 
 app.listen(3000)
