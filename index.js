@@ -78,13 +78,12 @@ function generate(objectID, mapID) {
 							complete: (opts) => {
 								var obj = {
 									object: item.object,
-									map: item.map
+									map: item.map,
+									path: opts.optimal
 								}
 
 								if (debug) {
 									obj.coords = opts.map
-									obj.clusters = opts.clusters
-									obj.path = opts.optimal
 								}
 
 								ret[item.map] = obj

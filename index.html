@@ -95,54 +95,48 @@ if (!!mapID && !!objectID) {
 }
 
 function render(data) {
+	this.canvas.ctx.lineWidth = 1;
+
+	//draw individual nodes
+	this.canvas.ctx.fillStyle = "#FFF";
 	for (var i in data.coords) {
 		var sample = data.coords[i]
+		this.canvas.ctx.beginPath();
 		drawSample(sample)
+		this.canvas.ctx.closePath();
 	}
 
+	//draw path based on clustered data
+	this.canvas.ctx.strokeStyle = "#F00";
+	this.canvas.ctx.fillStyle = "#F00";
+	this.canvas.ctx.beginPath();
 	for (var i in data.path) {
-		var node = data.path[i]
-		drawNode(node, i == 0)
+		var cluster = data.path[i]
+		drawPath(cluster, i == 0)
 	}
 	this.canvas.ctx.lineWidth = 1;
 	this.canvas.ctx.stroke();
 	this.canvas.ctx.closePath();
-
-	for (var i in data.clusters) {
-		var cluster = data.clusters[i]
-		drawCluster(cluster, i == 0)
-	}
 
 	function drawSample(sample) {
 		var coords = {
 			x: sample[0] * (canvas.width/100),
 			y: sample[1] * (canvas.height/100)
 		}
-
-	  canvas.ctx.fillStyle = "#FFF";
-	  canvas.ctx.beginPath();
-	  canvas.ctx.arc(coords.x, coords.y, 3, 0, Math.PI*2, true);
-	  canvas.ctx.closePath();
+		var width = 3
+	  canvas.ctx.arc(coords.x-width/2, coords.y-width/2, width, 0, Math.PI*2, true);
 	  canvas.ctx.fill();
 	}
 
-	function drawNode(node, first) {
+	function drawPath(cluster, first) {
 		var coords = {
-			x: node.x * (canvas.width/100),
-			y: node.y * (canvas.height/100)
+			x: cluster[0] * (canvas.width/100),
+			y: cluster[1] * (canvas.height/100)
 		}
-		canvas.ctx.fillStyle = "#0F0";
-		if (first) canvas.ctx.fillRect(coords.x, coords.y, 5, 5);
+		var width = 5
+		if (first) canvas.ctx.fillRect(coords.x-width/2, coords.y-width/2, width, width);
 		canvas.ctx.lineTo(coords.x, coords.y);
-	};
-
-	function drawCluster(cluster) {
-		var coords = {
-			x: node.x * (canvas.width/100),
-			y: node.y * (canvas.height/100)
-		}
-		canvas.ctx.fillStyle = "#F00";
-		canvas.ctx.fillRect(coords.x, coords.y, 10, 10);
+		canvas.ctx.fillRect(coords.x-width, coords.y-width, width*2, width*2);
 	}
 }
 
