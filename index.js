@@ -76,7 +76,7 @@ function generate(objectID, mapID) {
 							alpha: 0.05,
 							clusterMinNeighbours: 1,
 							clusterRadius: 1.2,
-							limit: debug ? 1000 : undefined,
+							limit: debug ? 150 : undefined,
 							complete: (opts) => {
 								var obj = {
 									object: item.object,
