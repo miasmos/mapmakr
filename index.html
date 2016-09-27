@@ -1,6 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<script type="text/javascript">
+if (!window.location.query) {
+    window.location.query = function (source) {
+        var map = {};
+        source = source || this.search;
+
+        if ("" != source) {
+            var groups = source, i;
+
+            if (groups.indexOf("?") == 0) {
+                groups = groups.substr(1);
+            }
+
+            groups = groups.split("&");
+
+            for (i in groups) {
+                source = groups[i].split("=",
+                    // For: xxx=, Prevents: [xxx, ""], Forces: [xxx]
+                    (groups[i].slice(-1) !== "=") + 1
+                );
+
+                // Key
+                i = decodeURIComponent(source[0]);
+
+                // Value
+                source = source[1]
+                source = typeof source === "undefined"
+                    ? source
+                    : decodeURIComponent(source);
+
+                // Save Duplicate Key
+                if (i in map) {
+                    if (Object.prototype.toString.call(map[i]) !== "[object Array]"){
+                        map[i] = [map[i]];
+                    }
+
+                    map[i].push(source);
+                }
+                // Save New Key
+                else {
+                    map[i] = source;
+                }
+            }
+        }
+
+        return map;
+    }
+}
+	</script>
 	<title></title>
 	<style type="text/css">
 		#background {
@@ -19,29 +68,35 @@
 	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
 </head>
 <body>
-<img id="background" src="http://wow.zamimg.com/images/wow/maps/enus/normal/6138.jpg?22427" />
+<img id="background" data-src="http://wow.zamimg.com/images/wow/maps/enus/normal/" />
 <script type="text/javascript">
 var width = 488, height = 325, scale = 2.5
 	width *= scale;
 	height *= scale;
+	mapID = 'mapID' in window.location.query() ? window.location.query().mapID : false
+	objectID = 'objectID' in window.location.query() ? window.location.query().objectID : false
 
-document.getElementById('background').style.width = width+'px'
-var canvas = makeCanvas(width, height)
+if (!!mapID && !!objectID) {
+	$('#background').css('width', width).attr('src', $('#background').attr('data-src') + mapID + '-0.jpg')
+	var canvas = makeCanvas(width, height)
 
-console.log('getting data...')
-$.ajax('http://localhost:3000/generate')
-	.done(function(data) {
-		console.log('done')
-		render(data)
-	})
-	.fail(function(err) {
-		console.log(err)
-	})
+	console.log('getting data...')
+	$.ajax('http://localhost:3000/generate/'+objectID+'/'+mapID+'/')
+		.done(function(data) {
+			console.log(data)
+			if (data.status === 'ok') render(data.data[mapID])
+			else console.error(data.error)
+		})
+		.fail(function(err) {
+			console.log(err)
+		})
+} else {
+	console.log('mapID and/or objectID not found')
+}
 
 function render(data) {
-	console.log(data)
-	for (var i in data.cities) {
-		var sample = data.cities[i]
+	for (var i in data.coords) {
+		var sample = data.coords[i]
 		drawSample(sample)
 	}
 
@@ -60,8 +115,8 @@ function render(data) {
 
 	function drawSample(sample) {
 		var coords = {
-			x: sample.x * (canvas.width/100),
-			y: sample.y * (canvas.height/100)
+			x: sample[0] * (canvas.width/100),
+			y: sample[1] * (canvas.height/100)
 		}
 
 	  canvas.ctx.fillStyle = "#FFF";

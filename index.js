@@ -1,9 +1,12 @@
+'use strict'
 var express = require('express'),
 	app = express(),
 	TSP = require('./lib/TSP'),
 	Scraper = require('./lib/Scraper'),
 	async = require('async'),
 	Promise = require('bluebird')
+
+var debug = true
 
 //config
 app.use(function(req, res, next) {
@@ -15,11 +18,13 @@ app.use(function(req, res, next) {
 app.set('json spaces', 10)
 
 app.param('objectID', function(req, res, next, id) {
-	next()
+	if (req.params.objectID.length !== 6 || Number(req.params.objectID) == NaN) complete(req, res, 'objectID is invalid', undefined)
+	else next()
 })
 
 app.param('mapID', function(req, res, next, id) {
-	next()
+	if (req.params.mapID.length !== 4 || Number(req.params.objectID) == NaN) complete(req, res, 'mapID is invalid', undefined)
+	else next()
 })
 //end config
 
@@ -53,47 +58,36 @@ app.get('/generate/:objectID/:mapID', (req, res) => {
 
 function generate(objectID, mapID) {
 	return new Promise((resolve, reject) => {
-		Scraper.get(objectID)
+		Scraper.get(objectID, mapID)
 			.then((json) => {
 				//get coordinate data
-				if (!!json && Object.keys(json).length) {
-					if (!!mapID && mapID in json) {
-						var obj = json[mapID][0]
-						return [{
-							count: obj.count,
-							map: mapID,
-							object: objectID,
-							coords: obj.coords
-						}]
-					} else {
-						return Object.keys(json).map((item, index) => {
-							var obj = json[item][0]
-							return {
-								count: obj.count,
-								map: item,
-								object: objectID,
-								coords: obj.coords
-							}
-						})
-					}
-				}
+				return json
 			})
-			.then((array) => {
+			.then((json) => {
 				//generate optimal path via TSP
-				var ret = []
+
+				var ret = {}
 				return new Promise((resolve, reject) => {
-					async.eachSeries(array, (item, callback) => {
+					async.eachSeries(json, (item, callback) => {
 						var tsp = new TSP({
 							map: item.coords,
 							cycles: 100,
 							gain: 50,
 							alpha: 0.05,
+							limit: debug ? 50 : undefined,
 							complete: (opts) => {
-								ret.push({
+								var obj = {
 									object: item.object,
-									coords: opts.optimal,
 									map: item.map
-								})
+								}
+
+								if (debug) {
+									obj.coords = opts.map
+									obj.clusters = opts.clusters
+									obj.path = opts.optimal
+								}
+
+								ret[item.map] = obj
 								callback()
 							}
 						})
@@ -102,8 +96,8 @@ function generate(objectID, mapID) {
 					})
 				})
 			})
-			.then((array) => {
-				resolve(array)
+			.then((json) => {
+				resolve(json)
 			})
 			.catch((err) => {
 				reject(err)
