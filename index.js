@@ -4,7 +4,8 @@ var express = require('express'),
 	TSP = require('./lib/TSP'),
 	Scraper = require('./lib/Scraper'),
 	async = require('async'),
-	Promise = require('bluebird')
+	Promise = require('bluebird'),
+	filters = require('./lib/Scraper/filters.json')
 
 var debug = true
 
@@ -26,6 +27,12 @@ app.param('mapID', function(req, res, next, id) {
 	if (req.params.mapID.length !== 4 || Number(req.params.objectID) == NaN) complete(req, res, 'mapID is invalid', undefined)
 	else next()
 })
+
+app.param('filter', function(req, res, next, id) {
+	var match = req.params.filter.match(/[0-9]*?;[0-9]*?;[0-9]*/)
+	if (!!match && match.length || req.params.filter in filters) next()
+	else complete(req, res, 'filter is invalid', undefined)
+})
 //end config
 
 //endpoints
@@ -37,7 +44,7 @@ app.get('/generate/:objectID', (req, res) => {
 		.then((json) => {
 			complete(req, res, undefined, json)
 		})
-		.error((err) => {
+		.catch((err) => {
 			complete(req, res, err, undefined)
 		})
 })
@@ -50,7 +57,17 @@ app.get('/generate/:objectID/:mapID', (req, res) => {
 		.then((json) => {
 			complete(req, res, undefined, json)
 		})
-		.error((err) => {
+		.catch((err) => {
+			complete(req, res, err, undefined)
+		})
+})
+
+app.get('/item/:filter', (req, res) => {
+	Scraper.getItems(req.params.filter)
+		.then((json) => {
+			complete(req, res, undefined, json)
+		})
+		.catch((err) => {
 			complete(req, res, err, undefined)
 		})
 })
@@ -58,14 +75,9 @@ app.get('/generate/:objectID/:mapID', (req, res) => {
 
 function generate(objectID, mapID) {
 	return new Promise((resolve, reject) => {
-		Scraper.get(objectID, mapID)
-			.then((json) => {
-				//get coordinate data
-				return json
-			})
+		Scraper.getObjectCoordinates(objectID, mapID)
 			.then((json) => {
 				//generate optimal path via TSP
-
 				var ret = {}
 				return new Promise((resolve, reject) => {
 					async.eachSeries(json, (item, callback) => {
@@ -76,7 +88,7 @@ function generate(objectID, mapID) {
 							alpha: 0.05,
 							clusterMinNeighbours: 1,
 							clusterRadius: 1.2,
-							limit: debug ? 150 : undefined,
+							limit: debug ? 1000 : undefined,
 							complete: (opts) => {
 								var obj = {
 									object: item.object,
@@ -110,7 +122,12 @@ function complete(req, res, err, json) {
 	var ret = {}
 	if (err) {
 		ret.status = "error"
-		ret.message = err
+		if (!err.external) {
+			console.log(err.stack)
+			ret.message = 'Generic error'
+		} else {
+			ret.message = err.message
+		}
 	} else {
 		console.log('success')
 		ret.status = "ok"
