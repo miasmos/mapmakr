@@ -5,7 +5,8 @@ var express = require('express'),
 	Scraper = require('./lib/Scraper'),
 	async = require('async'),
 	Promise = require('bluebird'),
-	filters = require('./lib/Scraper/filters.json')
+	filters = require('./lib/Scraper/filters.json'),
+	db = new (require('./lib/Firebase/index'))()
 
 var debug = true
 
@@ -36,6 +37,16 @@ app.param('filter', function(req, res, next, id) {
 //end config
 
 //endpoints
+app.get('/test', (req, res) => {
+	db.Herbs.set({"test":true})
+		.then(() => {
+			console.log('Successfully wrote to db')
+		})
+		.catch((err) => {
+			console.error(err)
+		})
+	res.send('success')
+})
 app.get('/generate/:objectID', (req, res) => {
 	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
 		objectID = 'objectID' in req.params ? req.params.objectID : undefined
@@ -122,7 +133,7 @@ function complete(req, res, err, json) {
 	var ret = {}
 	if (err) {
 		ret.status = "error"
-		if (!err.external) {
+		if (!err.message) {
 			console.log(err.stack)
 			ret.message = 'Generic error'
 		} else {
