@@ -14,7 +14,7 @@ var debug = true
 //config
 app.use(function(req, res, next) {
 	res.header('Access-Control-Allow-Origin', '*');
-	res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+	res.header('Access-Control-Allow-Methods', 'GET');
 	res.header('Access-Control-Allow-Headers', 'Content-Type');
 	next()
 })
@@ -64,8 +64,38 @@ app.get('/generate/:objectID/:mapID', (req, res) => {
 		})
 })
 
+app.get('/coordinates/:objectID', (req, res) => {
+	Scraper.getObjectCoordinates(req.params.objectID)
+			.then((json) => {
+				complete(req, res, undefined, json)
+			})
+			.catch((err) => {
+				complete(req, res, err, undefined)
+			})
+})
+
+app.get('/coordinates/:objectID/:mapID', (req, res) => {
+	Scraper.getObjectCoordinates(req.params.objectID, req.params.mapID)
+			.then((json) => {
+				complete(req, res, undefined, json)
+			})
+			.catch((err) => {
+				complete(req, res, err, undefined)
+			})
+})
+
 app.get('/item/:filter', (req, res) => {
 	Scraper.getItems(req.params.filter)
+		.then((json) => {
+			complete(req, res, undefined, json)
+		})
+		.catch((err) => {
+			complete(req, res, err, undefined)
+		})
+})
+
+app.get('/zones', (req, res) => {
+	Scraper.getZones()
 		.then((json) => {
 			complete(req, res, undefined, json)
 		})
@@ -80,26 +110,44 @@ app.get('/update', (req, res) => {
 		q.push({name: filter, filter: filters[filter]})
 	}
 
-	async.forEachSeries(q, (task, callback) => {
-		Scraper.getItems(task.filter)
+	async.series([
+		(callback) => {
+			async.forEachSeries(q, (task, callback1) => {
+				Scraper.getItems(task.filter)
+						.then((json) => {
+							if (task.name in db.items) {
+								db.items[task.name].set(json)
+									.then(() => {
+										callback1()
+									})
+									.catch((err) => {
+										callback1(err)
+									})
+							} else {
+								console.log(`Skipping ${task.name} because it does not exist in Firebase object!`)
+							}
+						})
+						.error((err) => {
+							callback1(err)
+						})
+			}, (err) => {
+
+				callback(err)
+			})
+		},
+		(callback) => {
+			Scraper.zones()
 				.then((json) => {
-					if (task.name in db.items) {
-						db.items[task.name].set(json)
-							.then(() => {
-								callback()
-							})
-							.catch((err) => {
-								callback(err)
-							})
-					} else {
-						console.log(`Skipping ${task.name} because it does not exist in Firebase object!`)
-					}
+					console.log('Updated zones')
+					callback()
 				})
-				.error((err) => {
+				.catch((err) => {
 					callback(err)
 				})
-	}, (err) => {
-		complete(req, res, err, undefined)
+		}
+	],
+	(err) => {
+		complete(req, res, !!err ? err : undefined, undefined)
 	})
 })
 //end endpoints
