@@ -1,6 +1,7 @@
 'use strict'
 var express = require('express'),
 	app = express(),
+	async = require('async'),
 	TSP = require('./lib/TSP'),
 	Scraper = require('./lib/Scraper'),
 	async = require('async'),
@@ -37,16 +38,6 @@ app.param('filter', function(req, res, next, id) {
 //end config
 
 //endpoints
-app.get('/test', (req, res) => {
-	db.Herbs.set({"test":true})
-		.then(() => {
-			console.log('Successfully wrote to db')
-		})
-		.catch((err) => {
-			console.error(err)
-		})
-	res.send('success')
-})
 app.get('/generate/:objectID', (req, res) => {
 	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
 		objectID = 'objectID' in req.params ? req.params.objectID : undefined
@@ -81,6 +72,35 @@ app.get('/item/:filter', (req, res) => {
 		.catch((err) => {
 			complete(req, res, err, undefined)
 		})
+})
+
+app.get('/update', (req, res) => {
+	var q = []
+	for (var filter in filters) {
+		q.push({name: filter, filter: filters[filter]})
+	}
+
+	async.forEachSeries(q, (task, callback) => {
+		Scraper.getItems(task.filter)
+				.then((json) => {
+					if (task.name in db.items) {
+						db.items[task.name].set(json)
+							.then(() => {
+								callback()
+							})
+							.catch((err) => {
+								callback(err)
+							})
+					} else {
+						console.log(`Skipping ${task.name} because it does not exist in Firebase object!`)
+					}
+				})
+				.error((err) => {
+					callback(err)
+				})
+	}, (err) => {
+		complete(req, res, err, undefined)
+	})
 })
 //end endpoints
 
