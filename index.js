@@ -25,8 +25,8 @@ app.param('objectID', function(req, res, next, id) {
 	else next()
 })
 
-app.param('mapID', function(req, res, next, id) {
-	if (req.params.mapID.length !== 4 || Number(req.params.objectID) == NaN) complete(req, res, 'mapID is invalid', undefined)
+app.param('zoneID', function(req, res, next, id) {
+	if (req.params.zoneID.length !== 4 || Number(req.params.zoneID) == NaN) complete(req, res, 'zoneID is invalid', undefined)
 	else next()
 })
 
@@ -39,10 +39,10 @@ app.param('filter', function(req, res, next, id) {
 
 //endpoints
 app.get('/generate/:objectID', (req, res) => {
-	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
+	var zoneID = 'zoneID' in req.params ? req.params.zoneID : undefined,
 		objectID = 'objectID' in req.params ? req.params.objectID : undefined
 
-	generate(objectID, mapID)
+	generate(objectID, zoneID)
 		.then((json) => {
 			complete(req, res, undefined, json)
 		})
@@ -51,11 +51,11 @@ app.get('/generate/:objectID', (req, res) => {
 		})
 })
 
-app.get('/generate/:objectID/:mapID', (req, res) => {
-	var mapID = 'mapID' in req.params ? req.params.mapID : undefined,
+app.get('/generate/:objectID/:zoneID', (req, res) => {
+	var zoneID = 'zoneID' in req.params ? req.params.zoneID : undefined,
 		objectID = 'objectID' in req.params ? req.params.objectID : undefined
 
-	generate(objectID, mapID)
+	generate(objectID, zoneID)
 		.then((json) => {
 			complete(req, res, undefined, json)
 		})
@@ -74,8 +74,8 @@ app.get('/coordinates/:objectID', (req, res) => {
 			})
 })
 
-app.get('/coordinates/:objectID/:mapID', (req, res) => {
-	Scraper.getObjectCoordinates(req.params.objectID, req.params.mapID)
+app.get('/coordinates/:objectID/:zoneID', (req, res) => {
+	Scraper.getObjectCoordinates(req.params.objectID, req.params.zoneID)
 			.then((json) => {
 				complete(req, res, undefined, json)
 			})
@@ -104,8 +104,19 @@ app.get('/zones', (req, res) => {
 		})
 })
 
+app.get('/zone/:zoneID', (req, res) => {
+	Scraper.getZone(req.params.zoneID)
+		.then((json) => {
+			complete(req, res, undefined, json)
+		})
+		.catch((err) => {
+			complete(req, res, err, undefined)
+		})
+})
+
 app.get('/update', (req, res) => {
-	var q = []
+	console.log('/update')
+	var q = [], qCnt = 0
 	for (var filter in filters) {
 		q.push({name: filter, filter: filters[filter]})
 	}
@@ -120,26 +131,28 @@ app.get('/update', (req, res) => {
 									.then(() => {
 										callback1()
 									})
-									.catch((err) => {
-										callback1(err)
-									})
 							} else {
 								console.log(`Skipping ${task.name} because it does not exist in Firebase object!`)
 							}
 						})
 						.error((err) => {
+							if (err) console.error(err)
 							callback1(err)
 						})
 			}, (err) => {
-
 				callback(err)
 			})
 		},
 		(callback) => {
-			Scraper.zones()
+			Scraper.getZones()
 				.then((json) => {
-					console.log('Updated zones')
-					callback()
+					db.zones.set(json)
+						.then(() => {
+							callback()
+						})
+						.catch((err) => {
+							callback(err)
+						})
 				})
 				.catch((err) => {
 					callback(err)
@@ -152,9 +165,9 @@ app.get('/update', (req, res) => {
 })
 //end endpoints
 
-function generate(objectID, mapID) {
+function generate(objectID, zoneID) {
 	return new Promise((resolve, reject) => {
-		Scraper.getObjectCoordinates(objectID, mapID)
+		Scraper.getObjectCoordinates(objectID, zoneID)
 			.then((json) => {
 				//generate optimal path via TSP
 				var ret = {}
@@ -212,7 +225,7 @@ function complete(req, res, err, json) {
 		ret.status = "ok"
 		ret.message = ""
 	}
-	ret.data = json ? json : {}
+	ret.data = !!json ? json : {}
 	res.send(ret)
 	res.end()
 }
