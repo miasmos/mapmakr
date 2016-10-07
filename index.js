@@ -3,12 +3,12 @@ var express = require('express'),
 	app = express(),
 	cors = require('cors'),
 	async = require('async'),
-	TSP = require('./lib/TSP'),
 	Scraper = require('./lib/Scraper'),
 	async = require('async'),
 	Promise = require('bluebird'),
 	filters = require('./lib/Scraper/filters.json'),
-	db = new (require('./lib/Firebase/index'))()
+	db = new (require('./lib/Firebase/index'))(),
+	ProfileGenerator = require('./lib/ProfileGenerator')({db: db})
 
 var debug = false,
 	whitelist = [
@@ -145,24 +145,30 @@ app.get('/scrape/zone/:zoneID', cors(corsOptions), (req, res) => {
 		})
 })
 
-app.get('/update', cors(corsOptions), (req, res) => {
+app.get('/update/profiles', cors(corsOptions), (req, res) => {
+	
+})
+
+app.get('/update/data', cors(corsOptions), (req, res) => {
 	var q = [], qCnt = 0
 	for (var filter in filters) {
 		q.push({name: filter, filter: filters[filter]})
 	}
 
-	async.series([
+	async.waterfall([
 		(callback) => {
 			async.forEachSeries(q, (task, callback1) => {
 				Scraper.getItems(task.filter)
 						.then((json) => {
-							if (task.name in db.items) {
-								db.items[task.name].set(json)
+							var key = task.name.charAt(0).toUpperCase() + task.name.slice(1)
+							if (task.name.charAt(0).toUpperCase() + task.name.slice(1) in db.items) {
+								db.items[key].set(json)
 									.then(() => {
 										callback1()
 									})
 							} else {
-								console.log(`Skipping ${task.name} because it does not exist in Firebase object!`)
+								console.log(`Skipping ${key} because it does not exist in Firebase object!`)
+								callback1()
 							}
 						})
 						.error((err) => {
@@ -178,7 +184,7 @@ app.get('/update', cors(corsOptions), (req, res) => {
 				.then((json) => {
 					db.zones.set(json)
 						.then(() => {
-							callback()
+							callback(undefined, json)
 						})
 						.catch((err) => {
 							callback(err)
@@ -187,6 +193,33 @@ app.get('/update', cors(corsOptions), (req, res) => {
 				.catch((err) => {
 					callback(err)
 				})
+		},
+		(zones, callback) => {
+			async.forEachSeries(zones, (task, callback1) => {
+				Scraper.getZone(task.id)
+					.then((json) => {
+						if (!!json) {
+							for (var key in task) {
+								json[key] = task[key]
+							}
+
+							db.zones.set(json, task.id)
+								.then(() => {
+									callback1()
+								})
+								.catch((err) => {
+									callback1(err)
+								})
+						} else {
+							callback1()
+						}
+					})
+					.catch((err) => {
+						callback1(err)
+					})
+			}, (err) => {
+				callback(err)
+			})
 		}
 	],
 	(err) => {
@@ -198,51 +231,6 @@ app.get('*', function(req, res) {
 	complete(req, res, 'Not Found', undefined, 404)
 })
 //end endpoints
-
-function generate(objectID, zoneID) {
-	return new Promise((resolve, reject) => {
-		Scraper.getObjectCoordinates(objectID, zoneID)
-			.then((json) => {
-				//generate optimal path via TSP
-				var ret = {}
-				return new Promise((resolve, reject) => {
-					async.eachSeries(json, (item, callback) => {
-						var tsp = new TSP({
-							map: item.coords,
-							cycles: 100,
-							gain: 50,
-							alpha: 0.05,
-							clusterMinNeighbours: 1,
-							clusterRadius: 1.2,
-							limit: debug ? 1000 : undefined,
-							complete: (opts) => {
-								var obj = {
-									object: item.object,
-									map: item.map,
-									path: opts.optimal
-								}
-
-								if (debug) {
-									obj.coords = opts.map
-								}
-
-								ret[item.map] = obj
-								callback()
-							}
-						})
-					}, () => {
-						resolve(ret)
-					})
-				})
-			})
-			.then((json) => {
-				resolve(json)
-			})
-			.catch((err) => {
-				reject(err)
-			})
-	})
-}
 
 function complete(req, res, err, json, status) {
 	var send = !!req && !!res
@@ -293,5 +281,9 @@ function complete(req, res, err, json, status) {
 		}
 	}
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+	console.error(reason)
+});
 
 app.listen(3000)
